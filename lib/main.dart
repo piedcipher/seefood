@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_ml_vision/firebase_ml_vision.dart';
+import 'package:google_ml_kit/google_ml_kit.dart';
 
 void main() => runApp(MyApp());
 
@@ -10,7 +10,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: true,
+      title: 'See Food',
       theme: ThemeData(
         primaryColor: Colors.deepPurple,
         primaryColorDark: Colors.deepPurple[700],
@@ -27,25 +27,25 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
-  File _file;
-  String _labels;
-  bool _result;
+  XFile? _file;
+  String _labels = '';
+  bool _result = false;
 
-  void _openFilePicker() async {
-    var file = await ImagePicker.pickImage(source: ImageSource.gallery);
+  Future<void> _openFilePicker() async {
+    var file = await ImagePicker().pickImage(source: ImageSource.gallery);
     setState(() {
       _file = file;
     });
-    _runMLKitOnDeviceImageLabeler();
+    await _runMLKitOnDeviceImageLabeler();
   }
 
-  void _runMLKitOnDeviceImageLabeler() async {
-    FirebaseVisionImage firebaseVisionImage =
-        FirebaseVisionImage.fromFile(_file);
-    ImageLabeler imageLabeler = FirebaseVision.instance.imageLabeler();
+  Future<void> _runMLKitOnDeviceImageLabeler() async {
+    InputImage firebaseVisionImage = InputImage.fromFile(File(_file!.path));
+    ImageLabeler imageLabeler = GoogleMlKit.vision.imageLabeler();
     List<ImageLabel> imageLabels =
         await imageLabeler.processImage(firebaseVisionImage);
-    String labels = imageLabels.map((imageLabel) => imageLabel.text).join(", ");
+    String labels =
+        imageLabels.map((imageLabel) => imageLabel.label).join(', ');
     setState(() {
       _labels = labels;
       if (_labels.contains("Food") ||
@@ -57,10 +57,6 @@ class _HomeState extends State<Home> {
         setState(() {
           _result = true;
         });
-      } else {
-        setState(() {
-          _result = false;
-        });
       }
     });
   }
@@ -68,70 +64,67 @@ class _HomeState extends State<Home> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        appBar: AppBar(
-          title: Text("See Food"),
-          actions: <Widget>[
-            _file != null
-                ? IconButton(
-                    onPressed: () {
-                      setState(() {
-                        _file = null;
-                      });
-                    },
-                    icon: Icon(Icons.close),
-                  )
-                : IconButton(
-                    onPressed: () {
-                      _openFilePicker();
-                    },
-                    icon: Icon(Icons.attach_file),
-                  )
-          ],
-        ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: _openFilePicker,
-          child: Icon(Icons.attach_file),
-        ),
-        body: _file == null
-            ? Column(
+      appBar: AppBar(
+        title: Text('See Food'),
+        actions: <Widget>[
+          _file != null
+              ? IconButton(
+                  onPressed: () {
+                    setState(() {
+                      _file = null;
+                    });
+                  },
+                  icon: const Icon(Icons.close),
+                )
+              : IconButton(
+                  onPressed: () async {
+                    await _openFilePicker();
+                  },
+                  icon: const Icon(Icons.attach_file),
+                )
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          await _openFilePicker();
+        },
+        child: const Icon(Icons.attach_file),
+      ),
+      body: _file == null
+          ? Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                Center(
+                  child: const Text('Click FAB to select an Image'),
+                ),
+              ],
+            )
+          : SingleChildScrollView(
+              child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  Center(
+                children: [
+                  Container(
+                    width: double.infinity,
+                    color: _result ? Colors.green : Colors.red,
+                    padding: const EdgeInsets.all(16.0),
+                    margin: const EdgeInsets.symmetric(
+                      vertical: 12.0,
+                      horizontal: 12.0,
+                    ),
                     child: Text(
-                      "Click FAB to select an Image",
+                      _result
+                          ? "Yes! Image does contains food items.\n\n$_labels"
+                          : "No! Image doesn't contain food items.\n\n$_labels",
+                      style: const TextStyle(color: Colors.white),
                     ),
                   ),
+                  Container(
+                    margin: const EdgeInsets.all(12.0),
+                    child: Image.file(File(_file!.path)),
+                  ),
                 ],
-              )
-            : SingleChildScrollView(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: <Widget>[
-                    FutureBuilder(
-                      builder: (BuildContext buildContext,
-                              AsyncSnapshot<dynamic> snapshot) =>
-                          Container(
-                            width: double.infinity,
-                            color: _result ? Colors.green : Colors.red,
-                            padding: EdgeInsets.all(16.0),
-                            margin: EdgeInsets.symmetric(vertical: 12.0, horizontal: 12.0),
-                            child: Text(
-                              _result
-                                  ? "Yes! Image does contains food items.\n\n$_labels"
-                                  : "No! Image doesn't contain food items.\n\n$_labels",
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ),
-                    ),
-                    Container(
-                      margin: const EdgeInsets.all(12.0),
-                      child: FutureBuilder(
-                          builder: (BuildContext buildContext,
-                              AsyncSnapshot<dynamic> snapshot) =>
-                              Image.file(_file)),
-                    ),
-                  ],
-                ),
-              ));
+              ),
+            ),
+    );
   }
 }
